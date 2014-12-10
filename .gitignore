@@ -21,3 +21,4 @@ celerybeat-schedule.db
 celerybeat.pid
 staticfiles/*
 !.vc
+data/nfl.csv

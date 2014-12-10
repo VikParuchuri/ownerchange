@@ -1,5 +1,13 @@
 import requests
 import bs4
+import os
+import time
+BASE_DIR = os.path.dirname(__file__)
+FILE_PATH = os.path.join(BASE_DIR, "data", "nfl.csv")
+import logging
+import sys
+import traceback
+log = logging.getLogger(__name__)
 
 teams = {
             "crd": "Arizona Cardinals",
@@ -50,47 +58,56 @@ class TeamInfo(object):
         stats_table = [str(e) for e in list(soup.select("#team_index tr"))]
         all_rows = []
         for tr in stats_table:
-            s = bs4.BeautifulSoup(tr)
-            tds = [str(e) for e in list(s.select("td"))]
-            if len(tds) != 28:
-                continue
-            row = []
-            row.append(bs4.BeautifulSoup(tds[0]).select("a")[0].get_text())
+            try:
+                s = bs4.BeautifulSoup(tr)
+                tds = [str(e) for e in list(s.select("td"))]
+                if len(tds) != 28:
+                    continue
+                row = [self.team]
+                row.append(bs4.BeautifulSoup(tds[0]).select("a")[0].get_text())
 
-            for item in [3,4,5,7,8,9]:
-                row.append(bs4.BeautifulSoup(tds[item]).get_text())
+                for item in [3,4,5,7,8,9]:
+                    row.append(bs4.BeautifulSoup(tds[item]).get_text())
 
-            for item in [10,12,13,14]:
-                row.append(bs4.BeautifulSoup(tds[item]).select("a")[0]["title"])
-                row.append(bs4.BeautifulSoup(tds[item]).select("a")[0]["href"])
+                for item in [10,12,13,14]:
+                    row.append(bs4.BeautifulSoup(tds[item]).select("a")[0]["title"])
+                    row.append(bs4.BeautifulSoup(tds[item]).select("a")[0]["href"])
 
-            for td in tds[15:]:
-                row.append(bs4.BeautifulSoup(td).get_text())
+                for td in tds[15:]:
+                    row.append(bs4.BeautifulSoup(td).get_text())
 
-            all_rows.append(row)
+                all_rows.append(row)
+            except Exception:
+                print "Error parsing record data"
+                traceback.print_exc()
+
         self.record_data = all_rows
 
     def parse_exec_table(self, table):
         all_rows = {}
         final_rows = []
         for tr in table:
-            s = bs4.BeautifulSoup(tr)
-            tds = [str(e) for e in list(s.select("td"))]
-            if len(tds) != 5:
-                continue
-            exec_name = bs4.BeautifulSoup(tds[0]).select("a")[0].get_text()
-            exec_link = bs4.BeautifulSoup(tds[0]).select("a")[0]["href"]
-            start_year = bs4.BeautifulSoup(tds[2]).get_text()
-            end_year = bs4.BeautifulSoup(tds[3]).get_text()
-            title = bs4.BeautifulSoup(tds[4]).get_text()
-
-            for i in xrange(int(start_year),(int(end_year) + 1)):
-                year = str(i)
-                if year in all_rows:
+            try:
+                s = bs4.BeautifulSoup(tr)
+                tds = [str(e) for e in list(s.select("td"))]
+                if len(tds) != 5:
                     continue
+                exec_name = bs4.BeautifulSoup(tds[0]).select("a")[0].get_text()
+                exec_link = bs4.BeautifulSoup(tds[0]).select("a")[0]["href"]
+                start_year = bs4.BeautifulSoup(tds[2]).get_text()
+                end_year = bs4.BeautifulSoup(tds[3]).get_text()
+                title = bs4.BeautifulSoup(tds[4]).get_text()
 
-                row = [year, exec_name, exec_link, title]
-                all_rows[year] = row
+                for i in xrange(int(start_year),(int(end_year) + 1)):
+                    year = str(i)
+                    if year in all_rows:
+                        continue
+
+                    row = [self.team, year, exec_name, exec_link, title]
+                    all_rows[year] = row
+            except Exception:
+                print "Error parsing exec table"
+                traceback.print_exc()
 
         for year in sorted(all_rows.keys()):
             final_rows.append(all_rows[year])
@@ -131,4 +148,25 @@ class TeamInfo(object):
                 all_data.append(full_row)
 
         self.all_data = all_data
+
+def get_all_data():
+    full_data = []
+    for team in teams:
+        time.sleep(2)
+        print team
+        try:
+            team_info = TeamInfo(team)
+            team_info.get_all_data()
+            full_data += team_info.all_data
+        except Exception:
+            print "Error parsing team"
+            traceback.print_exc()
+
+    rows = [",".join(row) for row in full_data]
+    csv_string = "\n".join(rows)
+    f = open(FILE_PATH, 'w+')
+    f.write(csv_string)
+    f.close()
+
+
 
