@@ -159,25 +159,28 @@ class RecordModel(object):
         train_data = self.train_data
         team_info = train_data[(train_data["year"] == 2013) & (train_data["team"] == team)].iloc[0,:]
         x = team_info.index[0]
-        reverse_id_mapping = {self.id_mapping[k]:k for k in self.id_mapping}
         for item in updates:
             val = updates[item]
-            vid = reverse_id_mapping[val]
-            num = self.reverse_id_numbers[vid]
 
-            team_info["{0}_num".format(item)] = num
+            team_info["{0}_num".format(item)] = int(val)
         new_row = self.generate_row_predictors(team_info, train_data)
-        pred = self.clf.predict(team_info[self.good_predictors])
-        print pred
+        pred = self.clf.predict(new_row[self.good_predictors])
+        return pred[0]
 
     def get_positions(self):
-        coaches = set(self.train_data["coach_name"])
-        gms = set(self.train_data["gm_name"])
-        owners = set(self.train_data["owners_name"])
+        coaches = list(set(self.csv_data["coach_name"]))
+        gms = list(set(self.csv_data["gm_name"]))
+        owners = list(set(self.csv_data["owner_name"]))
+        coach_nums = list(set(self.train_data["coach_num"]))
+        gm_nums = list(set(self.train_data["gm_num"]))
+        owner_nums = list(set(self.train_data["owner_num"]))
         return {
             "coaches": coaches,
             "gms": gms,
-            "owners": owners
+            "owners": owners,
+            "coach_nums": coach_nums,
+            "gm_nums": gm_nums,
+            "owner_nums": owner_nums
         }
 
     def get_current_positions(self):
@@ -194,7 +197,36 @@ class RecordModel(object):
 r = RecordModel()
 r.create_train_data()
 print r.cross_validate()
-r.predict("nyg", {"coach": ""})
+positions = r.get_positions()
+current_positions = r.get_current_positions()
+json_data = {
+    "current_positions": current_positions,
+    "positions": positions
+}
+
+names_to_ids = {}
+for id, row in r.train_data.iterrows():
+    names_to_ids[row["gm_num"]] = row["gm_name"]
+    names_to_ids[row["owner_num"]] = row["owner_name"]
+    names_to_ids[row["coach_num"]] = row["coach_name"]
+
+json_data["names_to_ids"] = names_to_ids
+
+team_wins_data = {}
+for team in settings.teams:
+    for coach in positions["coach_nums"]:
+        for gm in positions["gm_nums"]:
+            for owner in positions["owner_nums"]:
+                updates = {
+                    "coach": coach,
+                    "gm": gm,
+                    "owner": owner
+                }
+                person_id = "{0}_{1}_{2}_{3}".format(coach, gm, owner, team)
+                try:
+                    team_wins_data[person_id] = r.predict(team, updates)
+                except Exception:
+                    pass
 
 
 
