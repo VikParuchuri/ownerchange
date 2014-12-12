@@ -2,6 +2,7 @@ import os
 
 BASE_DIR = os.path.dirname(__file__)
 FILE_PATH = os.path.join(BASE_DIR, "data", "nfl.csv")
+JSON_PATH = os.path.join(BASE_DIR, "data", "teams.json")
 
 teams = {
             "crd": "Arizona Cardinals",

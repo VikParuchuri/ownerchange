@@ -2,6 +2,7 @@ import pandas
 import sklearn
 from sklearn.ensemble import RandomForestRegressor
 import settings
+import json
 
 def except_len(s):
     try:
@@ -36,11 +37,12 @@ class RecordModel(object):
                     team_wins[row["year"] + 1]["point_differential_rank"] = row["point_differential_rank"] / row["teams_in_league"]
                     team_wins[row["year"] + 1]["yard_differential_rank"] = row["yard_differential_rank"] / row["teams_in_league"]
             wins_dict[team] = team_wins
+
         for id, row in csv_data.iterrows():
             id_mapping[row["gm_id"]] = row["gm_name"]
             id_mapping[row["owner_id"]] = row["owner_name"]
             id_mapping[row["coach_id"]] = row["coach_name"]
-
+        reverse_id_mapping = {id_mapping[k]:k for k in id_mapping}
         sel_frame = csv_data[["team", "year", "coach_id", "gm_id", "owner_id", "wins", "gm_title", "owner_title"]]
         sel_frame = sel_frame[(sel_frame["year"] > 1960) & (sel_frame["year"] < 2014)]
         prev = {}
@@ -64,6 +66,14 @@ class RecordModel(object):
             team_mapping[i] = team
             reverse_team_mapping[team] = i
 
+        names_to_ids = {}
+        for i, item in enumerate(id_numbers):
+            person_id = id_numbers[item]
+            name = item
+
+            names_to_ids[name] = person_id
+
+        self.names_to_ids = names_to_ids
         coach_num = []
         gm_num = []
         owner_num = []
@@ -186,7 +196,7 @@ class RecordModel(object):
     def get_current_positions(self):
         team_pos = {}
         for t in settings.teams:
-            team_info = self.csv_data[(self.csv_data["year"] == 2014) & (self.csv_data["team"] == t)].iloc[0,:]
+            team_info = self.csv_data[(self.csv_data["year"] == 2013) & (self.csv_data["team"] == t)].iloc[0,:]
             team_pos[t] = {
                 "coach": team_info["coach_name"],
                 "gm": team_info["gm_name"],
@@ -204,13 +214,7 @@ json_data = {
     "positions": positions
 }
 
-names_to_ids = {}
-for id, row in r.train_data.iterrows():
-    names_to_ids[row["gm_num"]] = row["gm_name"]
-    names_to_ids[row["owner_num"]] = row["owner_name"]
-    names_to_ids[row["coach_num"]] = row["coach_name"]
-
-json_data["names_to_ids"] = names_to_ids
+json_data["names_to_ids"] = r.names_to_ids
 
 team_wins_data = {}
 for team in settings.teams:
@@ -228,5 +232,8 @@ for team in settings.teams:
                 except Exception:
                     pass
 
+json_data["team_wins_data"] = team_wins_data
+f = open(settings.JSON_PATH, 'w+')
+json.dump(json_data, f)
 
 
