@@ -41,7 +41,7 @@ class RecordModel(object):
             id_mapping[row["owner_id"]] = row["owner_name"]
             id_mapping[row["coach_id"]] = row["coach_name"]
 
-        sel_frame = csv_data[["team", "year", "coach_id", "gm_id", "owner_id", "wins"]]
+        sel_frame = csv_data[["team", "year", "coach_id", "gm_id", "owner_id", "wins", "gm_title", "owner_title"]]
         sel_frame = sel_frame[(sel_frame["year"] > 1960) & (sel_frame["year"] < 2014)]
         prev = {}
         for id, row in sel_frame.iterrows():
@@ -74,79 +74,16 @@ class RecordModel(object):
             coach_num.append(reverse_id_numbers[row["coach_id"]])
             team_num.append(reverse_team_mapping[row["team"]])
 
-
         sel_frame["coach_num"] = coach_num
         sel_frame["gm_num"] = gm_num
         sel_frame["owner_num"] = owner_num
         sel_frame["team_num"] = team_num
 
-        regime_stability = []
-        coach_stability = []
-        owner_stability = []
-        gm_stability = []
-        coach_wins_total = []
-        coach_wins_avg = []
-        gm_wins_total = []
-        gm_wins_avg = []
-        owner_wins_total = []
-        owner_wins_avg = []
-        regime_wins_total = []
-        regime_wins_avg = []
-        coach_yrs = []
-        gm_yrs = []
-        owner_yrs = []
-        coach_teams = []
-        gm_teams = []
-        owner_teams = []
+        rows = []
         for id, row in sel_frame.iterrows():
-            team_frame = sel_frame[(sel_frame["year"] < row["year"]) & (sel_frame["team"] == row["team"])]
-            reg_frame = team_frame[(team_frame["coach_num"] == row["coach_num"]) & (team_frame["gm_num"] == row["gm_num"]) & (team_frame["owner_num"] == row["owner_num"])]
-            regime_stability.append(len(reg_frame))
-
-            coach_frame = team_frame[(team_frame["coach_num"] == row["coach_num"])]
-            coach_stability.append(len(coach_frame))
-
-            owner_frame = team_frame[(team_frame["owner_num"] == row["owner_num"])]
-            owner_stability.append(len(owner_frame))
-
-            gm_frame = team_frame[(team_frame["gm_num"] == row["gm_num"])]
-            gm_stability.append(len(gm_frame))
-            coach_wins_total.append(sum(coach_frame["wins"]))
-            coach_wins_avg.append(mean(coach_frame["wins"]))
-            owner_wins_total.append(sum(owner_frame["wins"]))
-            owner_wins_avg.append(mean(owner_frame["wins"]))
-            gm_wins_total.append(sum(gm_frame["wins"]))
-            gm_wins_avg.append(mean(gm_frame["wins"]))
-            regime_wins_total.append(sum(reg_frame["wins"]))
-            regime_wins_avg.append(mean(reg_frame["wins"]))
-            coach_yrs.append(len(sel_frame[(sel_frame["coach_num"] == row["coach_num"])]))
-            gm_yrs.append(len(sel_frame[(sel_frame["gm_num"] == row["gm_num"])]))
-            owner_yrs.append(len(sel_frame[(sel_frame["owner_num"] == row["owner_num"])]))
-
-            coach_teams.append(len(set(sel_frame[(sel_frame["coach_num"] == row["coach_num"])]["team"])))
-            gm_teams.append(len(set(sel_frame[(sel_frame["coach_num"] == row["coach_num"])]["team"])))
-            owner_teams.append(len(set(sel_frame[(sel_frame["coach_num"] == row["coach_num"])]["team"])))
-
-        sel_frame["regime_stability"] = regime_stability
-        sel_frame["coach_stability"] = coach_stability
-        sel_frame["gm_stability"] = gm_stability
-        sel_frame["owner_stability"] = owner_stability
-        sel_frame["gm_title_len"] = csv_data["gm_title"].apply(except_len)
-        sel_frame["owner_title_len"] = csv_data["owner_title"].apply(except_len)
-        sel_frame["coach_wins_total"] = coach_wins_total
-        sel_frame["coach_wins_avg"] = coach_wins_avg
-        sel_frame["gm_wins_total"] = gm_wins_total
-        sel_frame["gm_wins_avg"] = gm_wins_avg
-        sel_frame["owner_wins_total"] = owner_wins_total
-        sel_frame["owner_wins_avg"] = owner_wins_avg
-        sel_frame["regime_wins_total"] = regime_wins_total
-        sel_frame["regime_wins_avg"] = regime_wins_avg
-        sel_frame["coach_yrs"] = coach_yrs
-        sel_frame["gm_yrs"] = gm_yrs
-        sel_frame["owner_yrs"] = owner_yrs
-        sel_frame["coach_teams"] = coach_teams
-        sel_frame["gm_teams"] = gm_teams
-        sel_frame["owner_teams"] = owner_teams
+            preds = self.generate_row_predictors(row, sel_frame)
+            rows.append(preds)
+        sel_frame = pandas.concat(rows, axis=0)
 
         self.train_data = sel_frame
         self.id_mapping = id_mapping
@@ -155,8 +92,45 @@ class RecordModel(object):
         self.reverse_team_mapping = reverse_team_mapping
         self.team_mapping = team_mapping
 
-    def generate_row_predictors(self, row):
+    def generate_row_predictors(self, row, sel_frame):
+        team_frame = sel_frame[(sel_frame["year"] < row["year"]) & (sel_frame["team"] == row["team"])]
+        reg_frame = team_frame[(team_frame["coach_num"] == row["coach_num"]) & (team_frame["gm_num"] == row["gm_num"]) & (team_frame["owner_num"] == row["owner_num"])]
+        regime_stability = len(reg_frame)
 
+        coach_frame = team_frame[(team_frame["coach_num"] == row["coach_num"])]
+        coach_stability = len(coach_frame)
+
+        owner_frame = team_frame[(team_frame["owner_num"] == row["owner_num"])]
+        owner_stability = len(owner_frame)
+
+        gm_frame = team_frame[(team_frame["gm_num"] == row["gm_num"])]
+        gm_stability = len(gm_frame)
+        coach_wins_total = sum(coach_frame["wins"])
+        coach_wins_avg = mean(coach_frame["wins"])
+        owner_wins_total = sum(owner_frame["wins"])
+        owner_wins_avg = mean(owner_frame["wins"])
+        gm_wins_total = sum(gm_frame["wins"])
+        gm_wins_avg = mean(gm_frame["wins"])
+        regime_wins_total = sum(reg_frame["wins"])
+        regime_wins_avg = mean(reg_frame["wins"])
+        coach_yrs = len(sel_frame[(sel_frame["coach_num"] == row["coach_num"])])
+        gm_yrs = len(sel_frame[(sel_frame["gm_num"] == row["gm_num"])])
+        owner_yrs = len(sel_frame[(sel_frame["owner_num"] == row["owner_num"])])
+
+        coach_teams = len(set(sel_frame[(sel_frame["coach_num"] == row["coach_num"])]["team"]))
+        gm_teams = len(set(sel_frame[(sel_frame["coach_num"] == row["coach_num"])]["team"]))
+        owner_teams = len(set(sel_frame[(sel_frame["coach_num"] == row["coach_num"])]["team"]))
+        gm_title_len = len(row["gm_title"])
+        owner_title_len = len(row["owner_title"])
+
+        preds = pandas.DataFrame([regime_stability, coach_stability, owner_stability, gm_stability, coach_wins_total, coach_wins_avg, owner_wins_total,
+                                  owner_wins_avg, gm_wins_total, gm_wins_avg, regime_wins_total, regime_wins_avg, coach_yrs, gm_yrs,
+                                  owner_yrs, coach_teams, gm_teams, owner_teams, gm_title_len, owner_title_len])
+        preds = preds.T
+        preds.columns = ["regime_stability", "coach_stability", "gm_stability", "owner_stability", "coach_wins_total","coach_wins_avg","gm_wins_total","gm_wins_avg","owner_wins_total","owner_wins_avg","regime_wins_total","regime_wins_avg","coach_yrs","gm_yrs","owner_yrs","coach_teams","gm_teams","owner_teams", "gm_title_len", "owner_title_len"]
+        preds = preds.T
+        full_row = pandas.concat([row, preds], axis=0)
+        return full_row.T
 
     def cross_validate(self):
         train_data = self.train_data
@@ -183,7 +157,7 @@ class RecordModel(object):
 
     def predict(self, team, updates):
         train_data = self.train_data
-        team_info = train_data[(train_data["year"] == 2013) & (train_data["team"] == team)]
+        team_info = train_data[(train_data["year"] == 2013) & (train_data["team"] == team)].iloc[0,:]
         x = team_info.index[0]
         reverse_id_mapping = {self.id_mapping[k]:k for k in self.id_mapping}
         for item in updates:
@@ -191,15 +165,36 @@ class RecordModel(object):
             vid = reverse_id_mapping[val]
             num = self.reverse_id_numbers[vid]
 
-            team_info.loc[x, "{0}_num".format(item)] = num
-            team_info.loc[x, "regime_stability"] = 0
-            if item == "coach":
-                team_info.loc[x, "coach_stability"] = 0
-            elif item == "gm":
-                team_info.loc[x, "gm_stability"] = 0
-            elif item == "owner":
-                team_info.loc[x, "owner_stability"] = 0
-
+            team_info["{0}_num".format(item)] = num
+        new_row = self.generate_row_predictors(team_info, train_data)
         pred = self.clf.predict(team_info[self.good_predictors])
+        print pred
+
+    def get_positions(self):
+        coaches = set(self.train_data["coach_name"])
+        gms = set(self.train_data["gm_name"])
+        owners = set(self.train_data["owners_name"])
+        return {
+            "coaches": coaches,
+            "gms": gms,
+            "owners": owners
+        }
+
+    def get_current_positions(self):
+        team_pos = {}
+        for t in settings.teams:
+            team_info = self.csv_data[(self.csv_data["year"] == 2014) & (self.csv_data["team"] == t)].iloc[0,:]
+            team_pos[t] = {
+                "coach": team_info["coach_name"],
+                "gm": team_info["gm_name"],
+                "owner": team_info["owner_name"]
+            }
+        return team_pos
+
+r = RecordModel()
+r.create_train_data()
+print r.cross_validate()
+r.predict("nyg", {"coach": ""})
+
 
 
