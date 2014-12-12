@@ -2,52 +2,16 @@ import requests
 import bs4
 import os
 import time
-BASE_DIR = os.path.dirname(__file__)
-FILE_PATH = os.path.join(BASE_DIR, "data", "nfl.csv")
 import logging
 import sys
 import traceback
+import settings
 log = logging.getLogger(__name__)
-
-teams = {
-            "crd": "Arizona Cardinals",
-            "atl": "Atlanta Falcons",
-            "rav": "Baltimore Ravens",
-            "buf": "Buffalo Bills",
-            "car": "Carolina Panthers",
-            "chi": "Chicago Bears",
-            "cin": "Cincinatti Bengals",
-            "cle": "Cleveland Browns",
-            "dal": "Dallas Cowboys",
-            "den": "Denver Broncos",
-            "det": "Detroit Lions",
-            "gnb": "Green Bay Packers",
-            "htx": "Houston Texans",
-            "clt": "Indianapolis Colts",
-            "jax": "Jacksonville Jaguars",
-            "kan": "Kansas City Chiefs",
-            "mia": "Miama Dolphins",
-            "min": "Minnesota Vikings",
-            "nwe": "New England Patriots",
-            "nor": "New Orleans Saintsa",
-            "nyg": "New York Giants",
-            "nyj": "New York Jets",
-            "rai": "Oakland Raiders",
-            "phi": "Philadelphia Eagles",
-            "pit": "Pittsburgh Steelers",
-            "sdg": "San Diego Chargers",
-            "sfo": "San Francisco 49ers",
-            "sea": "Seattle Seahawks",
-            "ram": "St Loius Rams",
-            "tam": "Tampa Bay Buccaneers",
-            "oti": "Tennesse Titans",
-            "was": "Washington Redskins"
-}
 
 class TeamInfo(object):
     def __init__(self, team):
         self.team = team
-        self.team_name = teams[team]
+        self.team_name = settings.teams[team]
         self.exec_url = "http://www.pro-football-reference.com/teams/{0}/executives.htm".format(team)
         self.record_url = "http://www.pro-football-reference.com/teams/{0}/".format(team)
 
@@ -103,7 +67,7 @@ class TeamInfo(object):
                     if year in all_rows:
                         continue
 
-                    row = [self.team, year, exec_name, exec_link, title]
+                    row = [year, exec_name, exec_link, title]
                     all_rows[year] = row
             except Exception:
                 print "Error parsing exec table"
@@ -133,12 +97,12 @@ class TeamInfo(object):
             exec_row = []
             owner_row = []
             for erow in self.exec_data:
-                if erow[0] == row[0]:
+                if erow[0] == row[1]:
                     exec_row = erow[1:]
                     break
 
             for orow in self.owner_data:
-                if orow[0] == row[0]:
+                if orow[0] == row[1]:
                     owner_row = orow[1:]
                     break
 
@@ -151,7 +115,7 @@ class TeamInfo(object):
 
 def get_all_data():
     full_data = []
-    for team in teams:
+    for team in settings.teams:
         time.sleep(2)
         print team
         try:
@@ -162,11 +126,9 @@ def get_all_data():
             print "Error parsing team"
             traceback.print_exc()
 
-    rows = [",".join(row) for row in full_data]
+    rows = [",".join(["\"{0}\"".format(e) for e in row]) for row in full_data]
+    rows.insert(0, ",".join(["\"{0}\"".format(e) for e in ["team", "year", "wins", "losses", "ties", "points_for", "points_against", "points_diff", "coach_name", "coach_id", "passer_name", "passer_id", "rusher_name", "rusher_id", "receiver_name", "receiver_id", "off_points", "off_yards", "def_points", "def_yards", "takeaway_giveaway_ratio", "point_differential_rank", "yard_differential_rank", "teams_in_league", "margin_of_victory", "strength_of_schedule", "simple_rating_system", "offensive_srs", "defensive_srs", "owner_name", "owner_id", "owner_title", "gm_name", "gm_id", "gm_title"]]))
     csv_string = "\n".join(rows)
-    f = open(FILE_PATH, 'w+')
+    f = open(settings.FILE_PATH, 'w+')
     f.write(csv_string)
     f.close()
-
-
-
