@@ -3,6 +3,7 @@ import sklearn
 from sklearn.ensemble import RandomForestRegressor
 import settings
 import json
+import os
 
 def except_len(s):
     try:
@@ -21,6 +22,7 @@ class RecordModel(object):
 
     def create_train_data(self):
         self.prev_predictors = ["wins", "points_for", "points_against", "points_diff", "off_points", "off_yards", "def_points", "def_yards", "takeaway_giveaway_ratio", "margin_of_victory", "strength_of_schedule", "simple_rating_system", "offensive_srs", "defensive_srs", "point_differential_rank", "yard_differential_rank"]
+        self.row_predictors = ["regime_stability", "coach_stability", "gm_stability", "owner_stability", "coach_wins_total","coach_wins_avg","gm_wins_total","gm_wins_avg","owner_wins_total","owner_wins_avg","regime_wins_total","regime_wins_avg","coach_yrs","gm_yrs","owner_yrs","coach_teams","gm_teams","owner_teams", "gm_title_len", "owner_title_len"]
         csv_data = self.csv_data
         wins_dict = {}
         id_mapping = {}
@@ -39,9 +41,11 @@ class RecordModel(object):
             wins_dict[team] = team_wins
 
         for id, row in csv_data.iterrows():
+            # ID to name
             id_mapping[row["gm_id"]] = row["gm_name"]
             id_mapping[row["owner_id"]] = row["owner_name"]
             id_mapping[row["coach_id"]] = row["coach_name"]
+        # Name to id
         reverse_id_mapping = {id_mapping[k]:k for k in id_mapping}
         sel_frame = csv_data[["team", "year", "coach_id", "gm_id", "owner_id", "wins", "gm_title", "owner_title"]]
         sel_frame = sel_frame[(sel_frame["year"] > 1960) & (sel_frame["year"] < 2014)]
@@ -59,7 +63,9 @@ class RecordModel(object):
             sel_frame[n] = prev[k]
 
         for i, item in enumerate(id_mapping.keys()):
+            # Number to name
             id_numbers[i] = id_mapping[item]
+            # id to number
             reverse_id_numbers[item] = i
 
         for i, team in enumerate(settings.teams.keys()):
@@ -68,10 +74,9 @@ class RecordModel(object):
 
         names_to_ids = {}
         for i, item in enumerate(id_numbers):
-            person_id = id_numbers[item]
-            name = item
+            name = id_numbers[item]
 
-            names_to_ids[name] = person_id
+            names_to_ids[name] = item
 
         self.names_to_ids = names_to_ids
         coach_num = []
@@ -137,7 +142,7 @@ class RecordModel(object):
                                   owner_wins_avg, gm_wins_total, gm_wins_avg, regime_wins_total, regime_wins_avg, coach_yrs, gm_yrs,
                                   owner_yrs, coach_teams, gm_teams, owner_teams, gm_title_len, owner_title_len])
         preds = preds.T
-        preds.columns = ["regime_stability", "coach_stability", "gm_stability", "owner_stability", "coach_wins_total","coach_wins_avg","gm_wins_total","gm_wins_avg","owner_wins_total","owner_wins_avg","regime_wins_total","regime_wins_avg","coach_yrs","gm_yrs","owner_yrs","coach_teams","gm_teams","owner_teams", "gm_title_len", "owner_title_len"]
+        preds.columns = self.row_predictors
         preds = preds.T
         full_row = pandas.concat([row, preds], axis=0)
         return full_row.T
@@ -165,10 +170,37 @@ class RecordModel(object):
         clf.fit(train_data[self.good_predictors], train_data["wins"])
         self.clf = clf
 
+    def batch_predict(self, updates):
+        train_data = self.train_data
+        rows = []
+        for k in updates:
+            update = updates[k]
+            team = update["team"]
+
+            team_info = train_data[(train_data["year"] == 2013) & (train_data["team"] == team)].iloc[0,:]
+            team_info = team_info.copy()
+            for item in update:
+                if item not in ["coach", "gm", "owner"]:
+                    continue
+                val = update[item]
+
+                team_info["{0}_num".format(item)] = int(val)
+            team_info = team_info.drop(self.row_predictors, axis=0)
+            new_row = self.generate_row_predictors(team_info, train_data)
+            new_row["person_id"] = k
+            rows.append(new_row)
+        frame = pandas.concat(rows, axis=0)
+        predictions = self.clf.predict(frame[self.good_predictors])
+        preds = pandas.DataFrame(predictions)[0]
+        pids = frame["person_id"]
+        person_wins = {}
+        for i, pid in enumerate(pids):
+            person_wins[pid] = preds[i]
+        return person_wins
+
     def predict(self, team, updates):
         train_data = self.train_data
         team_info = train_data[(train_data["year"] == 2013) & (train_data["team"] == team)].iloc[0,:]
-        x = team_info.index[0]
         for item in updates:
             val = updates[item]
 
@@ -178,12 +210,12 @@ class RecordModel(object):
         return pred[0]
 
     def get_positions(self):
-        coaches = list(set(self.csv_data["coach_name"]))
-        gms = list(set(self.csv_data["gm_name"]))
-        owners = list(set(self.csv_data["owner_name"]))
-        coach_nums = list(set(self.train_data["coach_num"]))
-        gm_nums = list(set(self.train_data["gm_num"]))
-        owner_nums = list(set(self.train_data["owner_num"]))
+        coaches = list(set(self.csv_data[(self.csv_data["year"] > 2012)]["coach_name"]))
+        gms = list(set(self.csv_data[(self.csv_data["year"] > 2012)]["gm_name"]))
+        owners = list(set(self.csv_data[(self.csv_data["year"] > 2012)]["owner_name"]))
+        coach_nums = list(set(self.train_data[(self.train_data["year"] > 2012)]["coach_num"]))
+        gm_nums = list(set(self.train_data[(self.train_data["year"] > 2012)]["gm_num"]))
+        owner_nums = list(set(self.train_data[(self.train_data["year"] > 2012)]["owner_num"]))
         return {
             "coaches": coaches,
             "gms": gms,
@@ -215,25 +247,32 @@ json_data = {
 }
 
 json_data["names_to_ids"] = r.names_to_ids
+total = len(positions["coach_nums"]) * len(positions["gm_nums"]) * len(positions["owner_nums"])
+print total
 
-team_wins_data = {}
-for team in settings.teams:
+f = open(settings.JSON_METADATA_FILE, "w+")
+json.dump(json_data, f)
+f.close()
+
+for i, team in enumerate(settings.teams):
+    print i
+    print team
+    updates = {}
     for coach in positions["coach_nums"]:
         for gm in positions["gm_nums"]:
             for owner in positions["owner_nums"]:
-                updates = {
+                person_id = "{0}_{1}_{2}_{3}".format(coach, gm, owner, team)
+                updates[person_id] = {
                     "coach": coach,
                     "gm": gm,
-                    "owner": owner
+                    "owner": owner,
+                    "person_id": person_id,
+                    "team": team
                 }
-                person_id = "{0}_{1}_{2}_{3}".format(coach, gm, owner, team)
-                try:
-                    team_wins_data[person_id] = r.predict(team, updates)
-                except Exception:
-                    pass
 
-json_data["team_wins_data"] = team_wins_data
-f = open(settings.JSON_PATH, 'w+')
-json.dump(json_data, f)
-
+    team_wins_data = r.batch_predict(updates)
+    json_data["team_wins_data"] = team_wins_data
+    f = open(os.path.join(settings.JSON_PATH, "{0}.json".format(team)), 'w+')
+    json.dump(team_wins_data, f)
+    f.close()
 
