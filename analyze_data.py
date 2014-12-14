@@ -48,7 +48,7 @@ class RecordModel(object):
         # Name to id
         reverse_id_mapping = {id_mapping[k]:k for k in id_mapping}
         sel_frame = csv_data[["team", "year", "coach_id", "gm_id", "owner_id", "wins", "gm_title", "owner_title"]]
-        sel_frame = sel_frame[(sel_frame["year"] > 1960) & (sel_frame["year"] < 2014)]
+        sel_frame = sel_frame[(sel_frame["year"] > 1960)]
         prev = {}
         for id, row in sel_frame.iterrows():
             info = wins_dict[row["team"]].get(row["year"], {})
@@ -177,7 +177,7 @@ class RecordModel(object):
             update = updates[k]
             team = update["team"]
 
-            team_info = train_data[(train_data["year"] == 2013) & (train_data["team"] == team)].iloc[0,:]
+            team_info = train_data[(train_data["year"] == 2014) & (train_data["team"] == team)].iloc[0,:]
             team_info = team_info.copy()
             for item in update:
                 if item not in ["coach", "gm", "owner"]:
@@ -200,7 +200,7 @@ class RecordModel(object):
 
     def predict(self, team, updates):
         train_data = self.train_data
-        team_info = train_data[(train_data["year"] == 2013) & (train_data["team"] == team)].iloc[0,:]
+        team_info = train_data[(train_data["year"] == 2014) & (train_data["team"] == team)].iloc[0,:]
         for item in updates:
             val = updates[item]
 
@@ -210,16 +210,16 @@ class RecordModel(object):
         return pred[0]
 
     def get_positions(self):
-        coaches = list(set(self.csv_data[(self.csv_data["year"] > 2012)]["coach_name"]))
-        gms = list(set(self.csv_data[(self.csv_data["year"] > 2012)]["gm_name"]))
-        owners = list(set(self.csv_data[(self.csv_data["year"] > 2012)]["owner_name"]))
-        coach_nums = list(set(self.train_data[(self.train_data["year"] > 2012)]["coach_num"]))
-        gm_nums = list(set(self.train_data[(self.train_data["year"] > 2012)]["gm_num"]))
-        owner_nums = list(set(self.train_data[(self.train_data["year"] > 2012)]["owner_num"]))
+        coaches = list(set(self.csv_data[(self.csv_data["year"] > 2013)]["coach_name"]))
+        gms = list(set(self.csv_data[(self.csv_data["year"] > 2013)]["gm_name"]))
+        owners = list(set(self.csv_data[(self.csv_data["year"] > 2013)]["owner_name"]))
+        coach_nums = list(set(self.train_data[(self.train_data["year"] > 2013)]["coach_num"]))
+        gm_nums = list(set(self.train_data[(self.train_data["year"] > 2013)]["gm_num"]))
+        owner_nums = list(set(self.train_data[(self.train_data["year"] > 2013)]["owner_num"]))
         return {
-            "coaches": coaches,
-            "gms": gms,
-            "owners": owners,
+            "coaches": [{"name": c, "id": self.names_to_ids[c]} for c in coaches],
+            "gms": [{"name": g, "id": self.names_to_ids[g]} for g in gms],
+            "owners": [{"name": o, "id": self.names_to_ids[o]} for o in owners],
             "coach_nums": coach_nums,
             "gm_nums": gm_nums,
             "owner_nums": owner_nums
@@ -228,7 +228,10 @@ class RecordModel(object):
     def get_current_positions(self):
         team_pos = {}
         for t in settings.teams:
-            team_info = self.csv_data[(self.csv_data["year"] == 2013) & (self.csv_data["team"] == t)].iloc[0,:]
+            try:
+                team_info = self.csv_data[(self.csv_data["year"] == 2014) & (self.csv_data["team"] == t)].iloc[0,:]
+            except:
+                team_info = self.csv_data[(self.csv_data["year"] == 2013) & (self.csv_data["team"] == t)].iloc[0,:]
             team_pos[t] = {
                 "coach": team_info["coach_name"],
                 "gm": team_info["gm_name"],
@@ -241,18 +244,31 @@ r.create_train_data()
 print r.cross_validate()
 positions = r.get_positions()
 current_positions = r.get_current_positions()
+team_names = [settings.teams[team] for team in settings.teams]
 json_data = {
     "current_positions": current_positions,
-    "positions": positions
+    "positions": positions,
+    "team_names_to_ids": {settings.teams[team]: team for team in settings.teams}
 }
 
 json_data["names_to_ids"] = r.names_to_ids
-total = len(positions["coach_nums"]) * len(positions["gm_nums"]) * len(positions["owner_nums"])
-print total
+
+team_info = [
+    {
+        "name": settings.teams[team],
+        "code": team,
+        "image": "images/logos/{0}.svg".format(settings.teams[team].replace(" ", "-").lower()),
+        "nick": settings.teams[team].split(" ")[-1]
+    } for team in settings.teams
+]
+json_data["team_info"] = team_info
 
 f = open(settings.JSON_METADATA_FILE, "w+")
 json.dump(json_data, f)
 f.close()
+
+total = len(positions["coach_nums"]) * len(positions["gm_nums"]) * len(positions["owner_nums"])
+print total
 
 for i, team in enumerate(settings.teams):
     print i

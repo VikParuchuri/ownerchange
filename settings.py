@@ -12,7 +12,7 @@ teams = {
             "buf": "Buffalo Bills",
             "car": "Carolina Panthers",
             "chi": "Chicago Bears",
-            "cin": "Cincinatti Bengals",
+            "cin": "Cincinnati Bengals",
             "cle": "Cleveland Browns",
             "dal": "Dallas Cowboys",
             "den": "Denver Broncos",
@@ -22,10 +22,10 @@ teams = {
             "clt": "Indianapolis Colts",
             "jax": "Jacksonville Jaguars",
             "kan": "Kansas City Chiefs",
-            "mia": "Miama Dolphins",
+            "mia": "Miami Dolphins",
             "min": "Minnesota Vikings",
             "nwe": "New England Patriots",
-            "nor": "New Orleans Saintsa",
+            "nor": "New Orleans Saints",
             "nyg": "New York Giants",
             "nyj": "New York Jets",
             "rai": "Oakland Raiders",
@@ -34,9 +34,9 @@ teams = {
             "sdg": "San Diego Chargers",
             "sfo": "San Francisco 49ers",
             "sea": "Seattle Seahawks",
-            "ram": "St Loius Rams",
+            "ram": "St Louis Rams",
             "tam": "Tampa Bay Buccaneers",
-            "oti": "Tennesse Titans",
+            "oti": "Tennessee Titans",
             "was": "Washington Redskins"
 }
 
