@@ -47,6 +47,7 @@ class RecordModel(object):
             id_mapping[row["coach_id"]] = row["coach_name"]
         # Name to id
         reverse_id_mapping = {id_mapping[k]:k for k in id_mapping}
+
         sel_frame = csv_data[["team", "year", "coach_id", "gm_id", "owner_id", "wins", "gm_title", "owner_title"]]
         sel_frame = sel_frame[(sel_frame["year"] > 1960)]
         prev = {}
@@ -62,21 +63,22 @@ class RecordModel(object):
             n = "prev_{0}".format(k)
             sel_frame[n] = prev[k]
 
+        names_to_ids = {}
+
         for i, item in enumerate(id_mapping.keys()):
+            num = i
+            if id_mapping[item] in names_to_ids:
+                num = names_to_ids[id_mapping[item]]
+            # Name to number
+            names_to_ids[id_mapping[item]] = num
             # Number to name
-            id_numbers[i] = id_mapping[item]
+            id_numbers[num] = id_mapping[item]
             # id to number
-            reverse_id_numbers[item] = i
+            reverse_id_numbers[item] = num
 
         for i, team in enumerate(settings.teams.keys()):
             team_mapping[i] = team
             reverse_team_mapping[team] = i
-
-        names_to_ids = {}
-        for i, item in enumerate(id_numbers):
-            name = id_numbers[item]
-
-            names_to_ids[name] = item
 
         self.names_to_ids = names_to_ids
         coach_num = []
@@ -167,7 +169,7 @@ class RecordModel(object):
         pred_frame = pandas.concat([all_real, all_preds], axis=1)
         print ((sum((pred_frame.iloc[:,3] - pred_frame.iloc[:,1]) ** 2))/ len(pred_frame)) ** .5
 
-        clf.fit(train_data[self.good_predictors], train_data["wins"])
+        clf.fit(train_data[self.good_predictors][(train_data["year"] < 2014)], train_data["wins"][(train_data["year"] < 2014)])
         self.clf = clf
 
     def batch_predict(self, updates):
@@ -176,8 +178,10 @@ class RecordModel(object):
         for k in updates:
             update = updates[k]
             team = update["team"]
-
-            team_info = train_data[(train_data["year"] == 2014) & (train_data["team"] == team)].iloc[0,:]
+            try:
+                team_info = train_data[(train_data["year"] == 2014) & (train_data["team"] == team)].iloc[0,:]
+            except:
+                team_info = train_data[(train_data["year"] == 2013) & (train_data["team"] == team)].iloc[0,:]
             team_info = team_info.copy()
             for item in update:
                 if item not in ["coach", "gm", "owner"]:
@@ -189,13 +193,43 @@ class RecordModel(object):
             new_row = self.generate_row_predictors(team_info, train_data)
             new_row["person_id"] = k
             rows.append(new_row)
-        frame = pandas.concat(rows, axis=0)
+        frame = pandas.concat(rows, axis=0).reset_index()
+        frame.drop("index", inplace=True, axis=1)
+        frame["coach_teams"] = frame["coach_teams"] + 1
+        frame["gm_teams"] = frame["gm_teams"] + 1
+        frame["owner_teams"] = frame["owner_teams"] + 1
+        frame["coach_yrs"] = frame["coach_yrs"] + 1
+        frame["gm_yrs"] = frame["gm_yrs"] + 1
+        frame["owner_yrs"] = frame["owner_yrs"] + 1
         predictions = self.clf.predict(frame[self.good_predictors])
-        preds = pandas.DataFrame(predictions)[0]
+        preds = pandas.DataFrame(predictions).reset_index()
+        preds.drop("index", inplace=True, axis=1)
+        for i in xrange(0,3):
+            regime_wins = preds.iloc[:,-1]
+            frame["regime_stability"] = frame["regime_stability"] + 1
+            frame["coach_stability"] = frame["coach_stability"] + 1
+            frame["gm_stability"] = frame["gm_stability"] + 1
+            frame["owner_stability"] = frame["owner_stability"] + 1
+            frame["regime_wins_total"] = frame["regime_wins_total"] + regime_wins
+            frame["coach_wins_total"] = frame["coach_wins_total"] + regime_wins
+            frame["owner_wins_total"] = frame["owner_wins_total"] + regime_wins
+            frame["gm_wins_total"] = frame["gm_wins_total"] + regime_wins
+
+            frame["regime_wins_total"] = frame["regime_wins_total"] / frame["regime_stability"]
+            frame["coach_wins_total"] = frame["coach_wins_total"] / frame["coach_stability"]
+            frame["gm_wins_total"] = frame["gm_wins_total"] / frame["gm_stability"]
+            frame["owner_wins_total"] = frame["owner_wins_total"] / frame["owner_stability"]
+            frame["coach_yrs"] = frame["coach_yrs"] + 1
+            frame["gm_yrs"] = frame["gm_yrs"] + 1
+            frame["owner_yrs"] = frame["owner_yrs"] + 1
+            predictions = self.clf.predict(frame[self.good_predictors])
+            preds["year_{0}".format(i + 2)] = predictions
+
+        avg_wins = preds.sum(axis=1) / preds.shape[1]
         pids = frame["person_id"]
         person_wins = {}
         for i, pid in enumerate(pids):
-            person_wins[pid] = preds[i]
+            person_wins[pid] = avg_wins[i]
         return person_wins
 
     def predict(self, team, updates):
@@ -287,7 +321,6 @@ for i, team in enumerate(settings.teams):
                 }
 
     team_wins_data = r.batch_predict(updates)
-    json_data["team_wins_data"] = team_wins_data
     f = open(os.path.join(settings.JSON_PATH, "{0}.json".format(team)), 'w+')
     json.dump(team_wins_data, f)
     f.close()
