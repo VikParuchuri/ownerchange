@@ -250,10 +250,47 @@ class RecordModel(object):
         coach_nums = list(set(self.train_data[(self.train_data["year"] > 2013)]["coach_num"]))
         gm_nums = list(set(self.train_data[(self.train_data["year"] > 2013)]["gm_num"]))
         owner_nums = list(set(self.train_data[(self.train_data["year"] > 2013)]["owner_num"]))
+
+        coach_data = []
+        for c in coaches:
+            team = self.csv_data[(self.csv_data["year"] > 2013) & (self.csv_data["coach_name"] == c)]["team"].iloc[0]
+            team_name = settings.teams[team]
+            image = "images/logos/{0}.svg".format(team_name.replace(" ", "-").lower())
+            coach_data.append({
+                "team": team,
+                "name": c,
+                "team_name": team_name,
+                "image": image
+            })
+
+        gm_data = []
+        for g in gms:
+            team = self.csv_data[(self.csv_data["year"] > 2013) & (self.csv_data["gm_name"] == g)]["team"].iloc[0]
+            team_name = settings.teams[team]
+            image = "images/logos/{0}.svg".format(team_name.replace(" ", "-").lower())
+            gm_data.append({
+                "team": team,
+                "name": g,
+                "team_name": team_name,
+                "image": image
+            })
+
+        owner_data = []
+        for o in owners:
+            team = self.csv_data[(self.csv_data["year"] > 2013) & (self.csv_data["owner_name"] == o)]["team"].iloc[0]
+            team_name = settings.teams[team]
+            image = "images/logos/{0}.svg".format(team_name.replace(" ", "-").lower())
+            owner_data.append({
+                "team": team,
+                "name": o,
+                "team_name": team_name,
+                "image": image
+            })
+
         return {
-            "coaches": [{"name": c, "id": self.names_to_ids[c]} for c in coaches],
-            "gms": [{"name": g, "id": self.names_to_ids[g]} for g in gms],
-            "owners": [{"name": o, "id": self.names_to_ids[o]} for o in owners],
+            "coaches": coach_data,
+            "gms": gm_data,
+            "owners": owner_data,
             "coach_nums": coach_nums,
             "gm_nums": gm_nums,
             "owner_nums": owner_nums
